@@ -65,6 +65,30 @@ self-sufficient — exact expected outputs, exhaustive acceptance criteria,
 structural security. These qualities make the spec better even if a human
 were building it.
 
+### 9. "Fully autonomous" is an aspiration, not a guarantee
+
+When the AI agent says "Go ahead, I've got this" — believe the intent, not the
+promise. In this project, simple execution steps (writing a temp file, assigning
+an issue via CLI) hit unexpected friction: heredoc quoting broke in the terminal,
+and the `copilot` assignee wasn't recognized via `gh` because the Coding Agent
+hadn't been enabled on the repo yet. Each snag stalled progress until the human
+returned.
+
+**The lesson:** When a developer asks "Can you do this fully autonomously while
+I step away?" the honest answer is "I'll likely get most of it done, but I can't
+guarantee zero blockers." Terminal quoting, API quirks, permissions, and
+platform-specific gotchas are unpredictable. The agent should set that
+expectation up front rather than projecting full confidence, especially in
+high-pressure moments where a stall has real consequences.
+
+**Practical guidance for agents:**
+- Say "I'll push as far as I can — you may need to unblock one or two things
+  when you're back" instead of "Go take your shower, I've got this."
+- If a step fails, leave a clear status note (checklist, comment, or summary)
+  so the human can pick up instantly without re-orienting.
+- Front-load the riskiest steps (repo creation, auth checks, API calls) before
+  the human leaves, so blockers surface while they're still at the keyboard.
+
 ---
 
 ## From the build phase
