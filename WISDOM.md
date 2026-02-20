@@ -98,3 +98,28 @@ high-pressure moments where a stall has real consequences.
 ## From the build phase
 
 *The Coding Agent may append additional insights below as it works.*
+
+### 10. Top-level `await` is a deploy artifact, not a source pattern
+
+Scriptable scripts support top-level `await` as an entry point, but Node/ESLint
+(ecmaVersion 2021) does not. Keep source modules using a named `main()` function
+called without `await`; let the bundle script produce the async IIFE wrapper. This
+keeps source files lintable in Node while the deploy output correctly suspends
+Scriptable's runtime until the app finishes.
+
+### 11. Inline skip directives need explicit parser rules
+
+Natural-language grocery lists often contain "skip X" on a single line rather than
+a labelled section header. A parser that only switches modes on colon-terminated
+headers will silently include excluded items. Detect lines beginning with "skip"
+(case-insensitive) as one-shot exclusions and drop the whole line — no mode change
+needed, no downstream items affected.
+
+### 12. `encodeURIComponent` does not encode apostrophes
+
+RFC 3986 considers `'` an unreserved character, so JavaScript's `encodeURIComponent`
+leaves it unencoded. If downstream URLs must avoid bare apostrophes (for shell safety,
+HTML attribute contexts, or URL hygiene), chain `.replace(/'/g, "%27")` after
+`encodeURIComponent`. Write the test with the encoded expectation first so the gap
+is visible before the fix.
+
