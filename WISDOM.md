@@ -82,8 +82,12 @@ expectation up front rather than projecting full confidence, especially in
 high-pressure moments where a stall has real consequences.
 
 **Practical guidance for agents:**
-- Say "I'll push as far as I can — you may need to unblock one or two things
-  when you're back" instead of "Go take your shower, I've got this."
+- **State a confidence percentage.** Instead of "I've got this," say something
+  like "I'd put this at 85% — the steps are straightforward but CLI quoting and
+  permissions checks could stall me." A number is honest, calibrated, and gives
+  the developer real information to decide whether to walk away or stick around
+  for the first few commands. Recalibrate out loud if conditions change ("That
+  auth error drops me to 60% — you may want to stay for this part").
 - If a step fails, leave a clear status note (checklist, comment, or summary)
   so the human can pick up instantly without re-orienting.
 - Front-load the riskiest steps (repo creation, auth checks, API calls) before
