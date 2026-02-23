@@ -4,3 +4,8 @@ dist/
 config/
 *.key
 *.secret
+
+# SpecStory extension artifacts — chat history and derived rules.
+# The extension auto-creates .specstory/ in any workspace folder it detects.
+# Keep it out of version control so feature branches stay clean.
+.specstory/
