@@ -48,4 +48,18 @@ describe("looksLikeNarrative", () => {
   test("short text with commentary pattern 'this covers breakfasts' → true", () => {
     expect(looksLikeNarrative("this covers breakfasts and lunches")).toBe(true);
   });
+
+  test("single-paragraph prose with 2 sentences → true", () => {
+    const text = "Need to buy some bananas and some eggs and some whole milk maybe. One of those small boxes of Reese's Pieces and a family pack of AAA batteries.";
+    expect(looksLikeNarrative(text)).toBe(true);
+  });
+
+  test("single-line over 80 chars with no newlines → true", () => {
+    const text = "I need bananas and eggs and whole milk and bread and peanut butter and jelly and cheese and crackers";
+    expect(looksLikeNarrative(text)).toBe(true);
+  });
+
+  test("short single-line list under 80 chars → false", () => {
+    expect(looksLikeNarrative("bananas, eggs, milk, bread")).toBe(false);
+  });
 });

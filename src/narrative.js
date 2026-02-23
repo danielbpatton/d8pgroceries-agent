@@ -38,6 +38,12 @@ function looksLikeNarrative(text) {
   const sentences = countSentences(text);
   const newlineCount = (text.match(/\n/g) || []).length;
 
+  // Single paragraph (no newlines) with multiple sentences is almost certainly prose
+  if (newlineCount === 0 && sentences >= 2) return true;
+
+  // Single paragraph over 80 chars with no structure — likely dictated or pasted prose
+  if (newlineCount === 0 && len > 80) return true;
+
   // Long text with multiple sentences
   if (len > 500 && sentences >= 3) return true;
 
