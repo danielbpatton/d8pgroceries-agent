@@ -7,6 +7,11 @@ const DIST_DIR = path.join(__dirname, "..", "dist");
 const OUT_FILE = path.join(DIST_DIR, "publix-agent.js");
 
 function stripModuleBoilerplate(code) {
+  // Remove multi-line module.exports = { ... }; blocks
+  code = code.replace(/module\.exports\s*=\s*\{[^}]*\};\s*/g, "");
+  // Remove single-line module.exports = <expr>;
+  code = code.replace(/module\.exports\s*=\s*[^{][^\n]*;\s*/g, "");
+
   return code
     .split("\n")
     .filter((line) => {
@@ -14,8 +19,6 @@ function stripModuleBoilerplate(code) {
       // Remove require(...) lines
       if (/^const\s+.*=\s*require\(/.test(trimmed)) return false;
       if (/^require\(/.test(trimmed)) return false;
-      // Remove module.exports lines
-      if (/^module\.exports\s*=/.test(trimmed)) return false;
       return true;
     })
     .join("\n");

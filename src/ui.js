@@ -6,47 +6,104 @@ const { publixSearchUrl } = require("./url");
  */
 async function getUserTextViaEditor() {
   const html = `<!DOCTYPE html>
-<html>
+<html style="background:#ffffff;color:#111111;min-height:100vh;">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <style>
-  body { font-family: -apple-system, sans-serif; padding: 16px; background: #f5f5f5; }
-  h2 { margin-bottom: 4px; }
-  p { color: #555; font-size: 14px; margin-top: 0; }
-  textarea { width: 100%; height: 45vh; font-size: 16px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; resize: vertical; }
+  /* Force light mode and explicit backgrounds to avoid black screen in Scriptable */
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  body {
+    font-family: -apple-system, sans-serif;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  h2 { margin: 0 0 4px 0; }
+  p { color: #555; font-size: 14px; margin: 0; }
+  textarea {
+    width: 100%;
+    height: 45vh;
+    font-size: 16px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    resize: vertical;
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
   .buttons { margin-top: 12px; display: flex; gap: 8px; }
-  button { flex: 1; padding: 12px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; }
-  .primary { background: #111; color: #fff; }
-  .secondary { background: #ddd; color: #333; }
+  button {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #dddddd;
+    color: #333333;
+  }
+  .primary { background: #111111; color: #ffffff; }
+  .secondary { background: #dddddd; color: #333333; }
 </style>
 </head>
-<body>
+<body style="background:#ffffff;color:#111111;min-height:100vh;">
 <h2>Publix Agent</h2>
 <p>Paste, type, or dictate your list. Edit as much as you want. Nothing happens until you tap Parse &amp; Preview.</p>
 <textarea id="list" placeholder="e.g. bananas, eggs, whole milk..."></textarea>
 <div class="buttons">
-  <button class="secondary" onclick="completion('__CANCEL__')">Cancel</button>
-  <button class="primary" onclick="completion(document.getElementById('list').value)">Parse &amp; Preview</button>
+  <button class="secondary" id="cancelBtn">Cancel</button>
+  <button class="primary" id="parseBtn">Parse &amp; Preview</button>
 </div>
 </body>
 </html>`;
 
   const wv = new WebView();
   await wv.loadHTML(html);
-  const result = await wv.present(true);
+
+  // Pre-paint guard in case styles are delayed
+  await wv.evaluateJavaScript(
+    "document.documentElement.style.backgroundColor='#fff';document.documentElement.style.color='#111';document.body.style.backgroundColor='#fff';document.body.style.color='#111';",
+    false
+  );
+
+  // Wire handlers and guard against swipe-to-dismiss
+  const pending = wv.evaluateJavaScript(`
+    function wire() {
+      document.getElementById('parseBtn').addEventListener('click', function() {
+        completion(document.getElementById('list').value);
+      });
+      document.getElementById('cancelBtn').addEventListener('click', function() {
+        completion('__CANCEL__');
+      });
+      window.addEventListener('pagehide', function() { completion('__CANCEL__'); });
+      window.addEventListener('unload', function() { completion('__CANCEL__'); });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wire);
+    } else {
+      wire();
+    }
+  `, true);
+
+  const presented = wv.present(true);
+  const result = await Promise.race([pending, presented.then(() => "__CANCEL__")]);
+
+  // Ensure the WebView closes so alerts can surface
+  try { await wv.dismiss(); } catch (_) { }
 
   if (typeof result === "string") return result;
-
-  // Fallback: Alert with text field
-  const alert = new Alert();
-  alert.title = "Enter Your List";
-  alert.message = "Paste or type your grocery list below.";
-  alert.addTextField("e.g. bananas, eggs, milk", "");
-  alert.addAction("Parse & Preview");
-  alert.addCancelAction("Cancel");
-  const choice = await alert.present();
-  if (choice === -1) return "__CANCEL__";
-  return alert.textFieldValue(0);
+  return "__CANCEL__";
 }
 
 /**

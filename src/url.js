@@ -6,7 +6,9 @@ const { CONFIG } = require("./config");
  * @returns {string}
  */
 function publixSearchUrl(item) {
-  return `https://www.instacart.com/store/${CONFIG.STORE_SLUG}/search?query=${encodeURIComponent(item).replace(/'/g, "%27")}`;
+  const cacheBust = Date.now();
+  const encoded = encodeURIComponent(item).replace(/%20/g, "+").replace(/'/g, "%27");
+  return `https://www.instacart.com/store/${CONFIG.STORE_SLUG}/search?q=${encoded}&page=1&ts=${cacheBust}&app_redirect=false`;
 }
 
 module.exports = { publixSearchUrl };

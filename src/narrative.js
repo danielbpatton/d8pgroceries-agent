@@ -1,4 +1,4 @@
-const COMMENTARY_PATTERNS = [
+const NARRATIVE_COMMENTARY_PATTERNS = [
   "this covers",
   "you can",
   "what you are not",
@@ -32,7 +32,7 @@ function looksLikeNarrative(text) {
   const lower = text.toLowerCase();
 
   // Contains commentary patterns
-  if (COMMENTARY_PATTERNS.some((p) => lower.includes(p))) return true;
+  if (NARRATIVE_COMMENTARY_PATTERNS.some((p) => lower.includes(p))) return true;
 
   const len = text.length;
   const sentences = countSentences(text);
