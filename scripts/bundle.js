@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const FILE_ORDER = ["config.js", "parser.js", "narrative.js", "url.js", "gpt.js", "ui.js", "main.js"];
+const FILE_ORDER = ["config.js", "parser.js", "narrative.js", "url.js", "gpt.js", "aisles.js", "ui.js", "main.js"];
 const SRC_DIR = path.join(__dirname, "..", "src");
 const DIST_DIR = path.join(__dirname, "..", "dist");
 const OUT_FILE = path.join(DIST_DIR, "publix-agent.js");

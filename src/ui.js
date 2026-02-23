@@ -1,4 +1,21 @@
 const { publixSearchUrl } = require("./url");
+const { groupByAisle } = require("./aisles");
+
+/**
+ * Show a mode selector: Build My List (in-store) or Order Delivery.
+ * @returns {Promise<string|null>} "build" | "delivery" | null (cancelled)
+ */
+async function showModeAlert() {
+  const alert = new Alert();
+  alert.title = "How are you shopping?";
+  alert.message = "Build My List creates an in-store checklist sorted by aisle.\nOrder Delivery searches Instacart for each item.";
+  alert.addAction("Build My List");
+  alert.addAction("Order Delivery");
+  alert.addCancelAction("Cancel");
+  const choice = await alert.present();
+  if (choice === -1) return null;
+  return choice === 0 ? "build" : "delivery";
+}
 
 /**
  * Show a fullscreen HTML editor for the user to type/paste/dictate their list.
@@ -132,9 +149,9 @@ async function shoppingLoop(items) {
     const alert = new Alert();
     alert.title = `Next Item (${i + 1}/${items.length})`;
     alert.message = items[i];
-    alert.addAction("Open in Publix");
+    alert.addAction("Search on Instacart");
     alert.addAction("Skip");
-    alert.addCancelAction("Cancel Session");
+    alert.addCancelAction("Done Shopping");
     const choice = await alert.present();
 
     if (choice === -1) {
@@ -166,4 +183,145 @@ async function finalizeScreen(result) {
   await alert.present();
 }
 
-module.exports = { getUserTextViaEditor, previewAndConfirm, shoppingLoop, finalizeScreen };
+/**
+ * Escape HTML entities for safe rendering.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Build an Apple-styled checklist HTML page grouped by aisle.
+ * @param {string[]} items
+ * @returns {string} HTML string
+ */
+function buildChecklistHTML(items) {
+  const grouped = groupByAisle(items);
+  const total = items.length;
+
+  let rows = "";
+  for (const group of grouped) {
+    rows += `<div class="section-header">${escapeHtml(group.section)}</div>\n`;
+    for (const item of group.items) {
+      rows += `<label class="row"><input type="checkbox" onchange="updateCount()"><span>${escapeHtml(item)}</span></label>\n`;
+    }
+  }
+
+  return `<!DOCTYPE html>
+<html style="background:#ffffff;min-height:100vh;">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-family: -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  body { padding: 16px 16px 100px 16px; }
+  h2 { margin-bottom: 4px; }
+  .counter {
+    color: #34c759; font-weight: 600; font-size: 15px;
+    margin-bottom: 16px;
+  }
+  .section-header {
+    font-weight: 700; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: #888; margin: 20px 0 6px 0;
+    border-bottom: 1px solid #eee; padding-bottom: 4px;
+  }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid #f2f2f2;
+    font-size: 17px; cursor: pointer;
+  }
+  .row input[type="checkbox"] {
+    width: 22px; height: 22px;
+    accent-color: #34c759; flex-shrink: 0;
+  }
+  .row.checked span {
+    text-decoration: line-through; color: #aaa;
+  }
+  .done-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 16px;
+    background: #ffffff; border-top: 1px solid #ddd;
+    display: flex; justify-content: center;
+  }
+  .done-bar button {
+    width: 100%; max-width: 400px;
+    padding: 14px; font-size: 17px; font-weight: 600;
+    border: none; border-radius: 12px;
+    background: #111; color: #fff; cursor: pointer;
+  }
+</style>
+</head>
+<body style="background:#ffffff;color:#111111;">
+<h2>Shopping List</h2>
+<div class="counter" id="counter">0 of ${total} items in cart</div>
+${rows}
+<div class="done-bar">
+  <button onclick="completion('done')">Done Shopping</button>
+</div>
+<script>
+function updateCount() {
+  var boxes = document.querySelectorAll('input[type=checkbox]');
+  var checked = 0;
+  boxes.forEach(function(cb) {
+    var row = cb.parentElement;
+    if (cb.checked) { row.classList.add('checked'); checked++; }
+    else { row.classList.remove('checked'); }
+  });
+  document.getElementById('counter').textContent = checked + ' of ' + ${total} + ' items in cart';
+}
+</script>
+</body>
+</html>`;
+}
+
+/**
+ * Show the in-store shopping checklist as a fullscreen WebView.
+ * @param {string[]} items
+ * @returns {Promise<void>}
+ */
+async function showBuildMyList(items) {
+  const html = buildChecklistHTML(items);
+  const wv = new WebView();
+  await wv.loadHTML(html);
+
+  // Pre-paint guard
+  await wv.evaluateJavaScript(
+    "document.documentElement.style.backgroundColor='#fff';document.body.style.backgroundColor='#fff';",
+    false
+  );
+
+  const pending = wv.evaluateJavaScript(`
+    // completion is already wired via the Done Shopping button onclick
+    window.addEventListener('pagehide', function() { completion('done'); });
+    window.addEventListener('unload', function() { completion('done'); });
+  `, true);
+
+  const presented = wv.present(true);
+  await Promise.race([pending, presented.then(() => "done")]);
+  try { await wv.dismiss(); } catch (_) { }
+}
+
+module.exports = {
+  showModeAlert,
+  getUserTextViaEditor,
+  previewAndConfirm,
+  shoppingLoop,
+  finalizeScreen,
+  escapeHtml,
+  buildChecklistHTML,
+  showBuildMyList
+};
