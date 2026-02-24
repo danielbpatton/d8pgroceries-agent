@@ -116,11 +116,15 @@ async function getUserTextViaEditor() {
   const presented = wv.present(true);
   const result = await Promise.race([pending, presented.then(() => "__CANCEL__")]);
 
-  // Ensure the WebView is fully dismissed before presenting new UI.
-  // Without awaiting the presented promise, the modal can remain in iOS's
-  // view stack and reappear when a later modal (e.g. checklist) is closed.
-  try { await wv.dismiss(); } catch (_) { }
-  try { await Promise.race([presented, new Promise(function(r) { setTimeout(r, 500); })]); } catch (_) { }
+  // Clean up the editor WebView.
+  // If the user submitted text (Parse & Preview or Cancel button), the
+  // editor is still on screen. Dismissing it races with presenting the
+  // next modal (checklist), leaving the editor visible underneath —
+  // causing a double-tap-to-exit bug. Instead, blank the HTML so it's
+  // invisible, and let Scriptable tear it down when the script ends.
+  // If the user tapped the native Close button, the editor is already
+  // dismissed; loadHTML on it is harmless.
+  try { await wv.loadHTML('<html><body style="background:#fff"></body></html>'); } catch (_) { }
 
   if (typeof result === "string") return result;
   return "__CANCEL__";
@@ -230,7 +234,7 @@ function buildChecklistHTML(items) {
     font-family: -apple-system, sans-serif;
     min-height: 100vh;
   }
-  body { padding: 16px 16px 100px 16px; }
+  body { padding: 16px 16px 120px 16px; }
   h2 { margin-bottom: 4px; }
   .counter {
     color: #34c759; font-weight: 600; font-size: 15px;
@@ -256,7 +260,7 @@ function buildChecklistHTML(items) {
   }
   .done-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
-    padding: 12px 16px env(safe-area-inset-bottom, 0px);
+    padding: 12px 24px 46px 24px;
     background: #ffffff; border-top: 1px solid #ddd;
     display: flex; justify-content: center;
     transition: transform 0.4s ease, opacity 0.3s ease;
@@ -266,7 +270,7 @@ function buildChecklistHTML(items) {
     pointer-events: none;
   }
   .done-bar button {
-    width: 100%; max-width: 400px;
+    width: 80%; max-width: 340px;
     padding: 14px; font-size: 17px; font-weight: 600;
     border: none; border-radius: 12px;
     background: #111; color: #fff; cursor: pointer;
