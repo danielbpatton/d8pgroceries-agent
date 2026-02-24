@@ -162,11 +162,33 @@ async function shoppingLoop(items) {
     }
     if (choice === 0) {
       // Open Instacart search inside a Scriptable WebView to keep
-      // the user in-app. Falls back to Safari if the WebView fails
-      // (e.g. Instacart blocks embedded rendering).
+      // the user in-app. Uses a clean URL (no cache-buster or extra
+      // params that can confuse Instacart's SPA router).
+      // Falls back to Safari if the WebView fails.
       try {
         const searchWv = new WebView();
-        await searchWv.loadURL(publixSearchUrl(items[i]));
+        const q = encodeURIComponent(items[i]);
+        const searchUrl = `https://www.instacart.com/store/publix/search?q=${q}`;
+        await searchWv.loadURL(searchUrl);
+
+        // After initial page load, inject a redirect guard.
+        // If a login flow stripped the search query from the URL,
+        // re-navigate to the search URL once the user is logged in.
+        await searchWv.evaluateJavaScript(`
+          (function() {
+            var target = '${searchUrl.replace(/'/g, "\\'")}';
+            var tid = setInterval(function() {
+              var p = new URLSearchParams(window.location.search);
+              var onSearch = window.location.pathname.indexOf('/search') !== -1;
+              if (onSearch && !p.get('q')) {
+                clearInterval(tid);
+                window.location.replace(target);
+              }
+            }, 800);
+            setTimeout(function() { clearInterval(tid); }, 30000);
+          })();
+        `, false);
+
         await searchWv.present(true);
       } catch (_) {
         Safari.open(publixSearchUrl(items[i]));
