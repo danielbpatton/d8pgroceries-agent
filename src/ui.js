@@ -305,11 +305,13 @@ async function showBuildMyList(items) {
   );
 
   const pending = wv.evaluateJavaScript(`
-    document.getElementById('doneBtn').addEventListener('click', function() {
-      completion('done');
+    document.addEventListener('click', function(e) {
+      var t = e.target;
+      while (t) {
+        if (t.id === 'doneBtn') { completion('done'); return; }
+        t = t.parentElement;
+      }
     });
-    window.addEventListener('pagehide', function() { completion('done'); });
-    window.addEventListener('unload', function() { completion('done'); });
   `, true);
 
   const presented = wv.present(true);
