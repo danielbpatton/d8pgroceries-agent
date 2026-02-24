@@ -116,8 +116,11 @@ async function getUserTextViaEditor() {
   const presented = wv.present(true);
   const result = await Promise.race([pending, presented.then(() => "__CANCEL__")]);
 
-  // Ensure the WebView closes so alerts can surface
+  // Ensure the WebView is fully dismissed before presenting new UI.
+  // Without awaiting the presented promise, the modal can remain in iOS's
+  // view stack and reappear when a later modal (e.g. checklist) is closed.
   try { await wv.dismiss(); } catch (_) { }
+  try { await Promise.race([presented, new Promise(function(r) { setTimeout(r, 500); })]); } catch (_) { }
 
   if (typeof result === "string") return result;
   return "__CANCEL__";
@@ -256,6 +259,11 @@ function buildChecklistHTML(items) {
     padding: 12px 16px env(safe-area-inset-bottom, 0px);
     background: #ffffff; border-top: 1px solid #ddd;
     display: flex; justify-content: center;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+  .done-bar.slide-out {
+    transform: translateY(100%); opacity: 0;
+    pointer-events: none;
   }
   .done-bar button {
     width: 100%; max-width: 400px;
@@ -265,21 +273,41 @@ function buildChecklistHTML(items) {
     transition: background 0.2s, transform 0.1s;
   }
   .done-bar button:active { transform: scale(0.97); }
-  .done-bar button.complete {
+  .done-bar button.flash {
     background: #34c759; color: #fff;
+    animation: flash-pulse 0.6s ease;
   }
-  .complete-banner {
-    display: none;
-    text-align: center; padding: 24px 16px;
-    font-size: 18px; font-weight: 600; color: #34c759;
+  .close-hint {
+    display: none; text-align: center;
+    padding: 24px 16px; margin: 8px 0 16px 0;
+    background: #f0f9f0; border-radius: 12px;
   }
-  .complete-banner.show { display: block; }
+  .close-hint.show { display: block; }
+  .close-hint .hint-icon { font-size: 36px; margin-bottom: 8px; }
+  .close-hint .hint-text { font-size: 16px; color: #333; line-height: 1.4; }
+  .close-hint .hint-close { color: #007aff; font-weight: 600; }
+  @keyframes flash-pulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes confetti-0 {
+    0% { opacity:1; transform: translateY(0) rotate(0deg); }
+    100% { opacity:0; transform: translateY(-75vh) rotate(540deg); }
+  }
+  @keyframes confetti-1 {
+    0% { opacity:1; transform: translateY(0) rotate(0deg); }
+    100% { opacity:0; transform: translateY(-60vh) rotate(-480deg); }
+  }
+  @keyframes confetti-2 {
+    0% { opacity:1; transform: translateY(0) rotate(0deg); }
+    100% { opacity:0; transform: translateY(-85vh) rotate(720deg); }
+  }
 </style>
 </head>
 <body style="background:#ffffff;color:#111111;">
 <h2 id="heading">Shopping List</h2>
 <div class="counter" id="counter">0 of ${total} items in cart</div>
-<div class="complete-banner" id="completeBanner">Shopping Complete ✓<br><span style="font-size:14px;color:#888;font-weight:400;">Tap Close to finish</span></div>
+<div class="close-hint" id="closeHint"><div class="hint-icon">🎉</div><div class="hint-text">All done! Tap <span class="hint-close">Close</span> in the top-left to finish.</div></div>
 ${rows}
 <div class="done-bar">
   <button id="doneBtn">Done Shopping</button>
@@ -328,14 +356,36 @@ async function showBuildMyList(items) {
         if (e.target && e.target.type === 'checkbox') updateCount();
       });
 
+      function launchConfetti() {
+        var colors = ['#34c759','#ff9500','#007aff','#ff2d55','#af52de','#ffcc00'];
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:fixed;bottom:60px;left:0;width:100%;height:0;pointer-events:none;z-index:9999;';
+        document.body.appendChild(wrap);
+        for (var i = 0; i < 35; i++) {
+          var sz = 6 + Math.random() * 6;
+          var lft = 10 + Math.random() * 80;
+          var dur = (0.8 + Math.random() * 0.8).toFixed(2);
+          var del = (Math.random() * 0.3).toFixed(2);
+          var p = document.createElement('div');
+          p.style.cssText = 'position:absolute;bottom:0;left:' + lft + '%;width:' + sz + 'px;height:' + sz + 'px;background:' + colors[i % colors.length] + ';border-radius:' + (i%2===0?'50%':'2px') + ';animation:confetti-' + (i%3) + ' ' + dur + 's ' + del + 's ease-out forwards;';
+          wrap.appendChild(p);
+        }
+        setTimeout(function() { wrap.remove(); }, 2500);
+      }
+
       document.getElementById('doneBtn').addEventListener('click', function() {
-        // Visual confirmation — transforms the UI to "complete" state
-        document.getElementById('doneBtn').textContent = 'Complete ✓';
-        document.getElementById('doneBtn').classList.add('complete');
-        document.getElementById('doneBtn').disabled = true;
-        document.getElementById('heading').textContent = 'Shopping Complete';
-        document.getElementById('completeBanner').classList.add('show');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        var btn = document.getElementById('doneBtn');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Complete! 🎉';
+        btn.classList.add('flash');
+        launchConfetti();
+        setTimeout(function() {
+          document.querySelector('.done-bar').classList.add('slide-out');
+          document.getElementById('heading').textContent = 'Shopping Complete';
+          document.getElementById('closeHint').classList.add('show');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 1200);
       });
     })();
   `, false);
