@@ -253,7 +253,7 @@ function buildChecklistHTML(items) {
   }
   .done-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
-    padding: 12px 16px;
+    padding: 12px 16px env(safe-area-inset-bottom, 0px);
     background: #ffffff; border-top: 1px solid #ddd;
     display: flex; justify-content: center;
   }
@@ -262,12 +262,24 @@ function buildChecklistHTML(items) {
     padding: 14px; font-size: 17px; font-weight: 600;
     border: none; border-radius: 12px;
     background: #111; color: #fff; cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
   }
+  .done-bar button:active { transform: scale(0.97); }
+  .done-bar button.complete {
+    background: #34c759; color: #fff;
+  }
+  .complete-banner {
+    display: none;
+    text-align: center; padding: 24px 16px;
+    font-size: 18px; font-weight: 600; color: #34c759;
+  }
+  .complete-banner.show { display: block; }
 </style>
 </head>
 <body style="background:#ffffff;color:#111111;">
-<h2>Shopping List</h2>
+<h2 id="heading">Shopping List</h2>
 <div class="counter" id="counter">0 of ${total} items in cart</div>
+<div class="complete-banner" id="completeBanner">Shopping Complete ✓<br><span style="font-size:14px;color:#888;font-weight:400;">Tap Close to finish</span></div>
 ${rows}
 <div class="done-bar">
   <button id="doneBtn">Done Shopping</button>
@@ -293,10 +305,12 @@ async function showBuildMyList(items) {
     false
   );
 
-  // Wire ALL interactivity from evaluateJavaScript — no inline JS in the HTML.
-  // This matches the proven pattern from getUserTextViaEditor.
-  const pending = wv.evaluateJavaScript(`
-    function wireChecklist() {
+  // Wire ALL interactivity with evaluateJavaScript(code, false).
+  // No completion() needed — the checklist doesn't return data.
+  // The native Close button handles dismissal (present() resolves).
+  // The Done button provides visual confirmation and a future hook.
+  await wv.evaluateJavaScript(`
+    (function() {
       var total = document.querySelectorAll('input[type=checkbox]').length;
 
       function updateCount() {
@@ -315,19 +329,19 @@ async function showBuildMyList(items) {
       });
 
       document.getElementById('doneBtn').addEventListener('click', function() {
-        completion('done');
+        // Visual confirmation — transforms the UI to "complete" state
+        document.getElementById('doneBtn').textContent = 'Complete ✓';
+        document.getElementById('doneBtn').classList.add('complete');
+        document.getElementById('doneBtn').disabled = true;
+        document.getElementById('heading').textContent = 'Shopping Complete';
+        document.getElementById('completeBanner').classList.add('show');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', wireChecklist);
-    } else {
-      wireChecklist();
-    }
-  `, true);
+    })();
+  `, false);
 
-  const presented = wv.present(true);
-  await Promise.race([pending, presented.then(() => "done")]);
-  try { await wv.dismiss(); } catch (_) { }
+  // Show the WebView — resolves when user taps Close or swipes to dismiss
+  await wv.present(true);
 }
 
 module.exports = {
