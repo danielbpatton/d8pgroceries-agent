@@ -161,31 +161,34 @@ async function shoppingLoop(items) {
       return { status: "cancelled", processed: i };
     }
     if (choice === 0) {
-      // Open Instacart search inside a Scriptable WebView to keep
-      // the user in-app. Uses a clean URL (no cache-buster or extra
-      // params that can confuse Instacart's SPA router).
+      // Open Instacart search inside a Scriptable WebView.
+      // Strategy: load the Publix storefront first so Instacart's
+      // React SPA fully hydrates. Then do a CLIENT-SIDE navigation
+      // to the search URL — this goes through the SPA router (which
+      // properly reads the q param) instead of a cold server render
+      // (which hydrates and loses the query to empty state).
       // Falls back to Safari if the WebView fails.
       try {
         const searchWv = new WebView();
         const q = encodeURIComponent(items[i]);
-        const searchUrl = `https://www.instacart.com/store/publix/search?q=${q}`;
-        await searchWv.loadURL(searchUrl);
+        const dest = "https://www.instacart.com/store/publix/search?q=" + q;
 
-        // After initial page load, inject a redirect guard.
-        // If a login flow stripped the search query from the URL,
-        // re-navigate to the search URL once the user is logged in.
+        // 1. Load storefront — SPA hydrates here
+        await searchWv.loadURL("https://www.instacart.com/store/publix");
+
+        // 2. Once hydrated, navigate to search via SPA router.
+        //    Poll for readyState=complete (SPA scripts loaded),
+        //    then redirect. 5s fallback if polling misses it.
         await searchWv.evaluateJavaScript(`
           (function() {
-            var target = '${searchUrl.replace(/'/g, "\\'")}';
+            var dest = "${dest.replace(/"/g, '\\"')}";
             var tid = setInterval(function() {
-              var p = new URLSearchParams(window.location.search);
-              var onSearch = window.location.pathname.indexOf('/search') !== -1;
-              if (onSearch && !p.get('q')) {
+              if (document.readyState === 'complete') {
                 clearInterval(tid);
-                window.location.replace(target);
+                setTimeout(function() { window.location.href = dest; }, 600);
               }
-            }, 800);
-            setTimeout(function() { clearInterval(tid); }, 30000);
+            }, 200);
+            setTimeout(function() { clearInterval(tid); window.location.href = dest; }, 5000);
           })();
         `, false);
 
