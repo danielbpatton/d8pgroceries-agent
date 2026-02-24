@@ -2,14 +2,7 @@ const { CONFIG, ensureApiKey } = require("./config");
 const { ruleBasedExtract } = require("./parser");
 const { looksLikeNarrative } = require("./narrative");
 const { gptExtract } = require("./gpt");
-const {
-  showModeAlert,
-  getUserTextViaEditor,
-  previewAndConfirm,
-  shoppingLoop,
-  finalizeScreen,
-  showBuildMyList
-} = require("./ui");
+const { showModeAlert, getUserTextViaEditor, previewAndConfirm, shoppingLoop, finalizeScreen, showBuildMyList } = require("./ui");
 
 async function main() {
   ensureApiKey();
