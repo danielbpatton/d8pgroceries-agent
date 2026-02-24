@@ -123,3 +123,21 @@ HTML attribute contexts, or URL hygiene), chain `.replace(/'/g, "%27")` after
 `encodeURIComponent`. Write the test with the encoded expectation first so the gap
 is visible before the fix.
 
+### 13. React SPAs don't read state from URLs — they read from Redux
+
+When a React SPA controls client-side routing, the URL query params are often
+cosmetic. Instacart's search page renders server-side with the correct `q` param,
+but React hydration resets search state from its Redux store (which is empty).
+Four approaches failed — direct URL, clean URL, redirect guard, client-side
+`location.href` — before DOM injection (setting the input value via React's native
+`HTMLInputElement.prototype.value` setter + dispatching keyboard events) worked.
+If the SPA ignores URL state, interact with the DOM the way a user would.
+
+### 14. iOS WebViews stack — you can't dismiss what you didn't present
+
+Scriptable's `WebView.present()` adds a view controller to the iOS stack.
+Calling `dismiss()` or loading blank HTML doesn't remove it — the user still
+has to tap Close. The fix is to reuse the same WebView instance across screens
+(editor → checklist) by calling `loadHTML()` on the existing one rather than
+creating a new WebView. One WebView, one Close tap.
+
