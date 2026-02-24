@@ -161,7 +161,16 @@ async function shoppingLoop(items) {
       return { status: "cancelled", processed: i };
     }
     if (choice === 0) {
-      Safari.open(publixSearchUrl(items[i]));
+      // Open Instacart search inside a Scriptable WebView to keep
+      // the user in-app. Falls back to Safari if the WebView fails
+      // (e.g. Instacart blocks embedded rendering).
+      try {
+        const searchWv = new WebView();
+        await searchWv.loadURL(publixSearchUrl(items[i]));
+        await searchWv.present(true);
+      } catch (_) {
+        Safari.open(publixSearchUrl(items[i]));
+      }
     }
     processed = i + 1;
   }
