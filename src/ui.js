@@ -209,7 +209,7 @@ function buildChecklistHTML(items) {
   for (const group of grouped) {
     rows += `<div class="section-header">${escapeHtml(group.section)}</div>\n`;
     for (const item of group.items) {
-      rows += `<label class="row"><input type="checkbox" onchange="updateCount()"><span>${escapeHtml(item)}</span></label>\n`;
+      rows += `<label class="row"><input type="checkbox"><span>${escapeHtml(item)}</span></label>\n`;
     }
   }
 
@@ -272,18 +272,7 @@ ${rows}
 <div class="done-bar">
   <button id="doneBtn">Done Shopping</button>
 </div>
-<script>
-function updateCount() {
-  var boxes = document.querySelectorAll('input[type=checkbox]');
-  var checked = 0;
-  boxes.forEach(function(cb) {
-    var row = cb.parentElement;
-    if (cb.checked) { row.classList.add('checked'); checked++; }
-    else { row.classList.remove('checked'); }
-  });
-  document.getElementById('counter').textContent = checked + ' of ' + ${total} + ' items in cart';
-}
-</script>
+
 </body>
 </html>`;
 }
@@ -304,14 +293,36 @@ async function showBuildMyList(items) {
     false
   );
 
+  // Wire ALL interactivity from evaluateJavaScript — no inline JS in the HTML.
+  // This matches the proven pattern from getUserTextViaEditor.
   const pending = wv.evaluateJavaScript(`
-    document.addEventListener('click', function(e) {
-      var t = e.target;
-      while (t) {
-        if (t.id === 'doneBtn') { completion('done'); return; }
-        t = t.parentElement;
+    function wireChecklist() {
+      var total = document.querySelectorAll('input[type=checkbox]').length;
+
+      function updateCount() {
+        var boxes = document.querySelectorAll('input[type=checkbox]');
+        var checked = 0;
+        boxes.forEach(function(cb) {
+          var row = cb.parentElement;
+          if (cb.checked) { row.classList.add('checked'); checked++; }
+          else { row.classList.remove('checked'); }
+        });
+        document.getElementById('counter').textContent = checked + ' of ' + total + ' items in cart';
       }
-    });
+
+      document.addEventListener('change', function(e) {
+        if (e.target && e.target.type === 'checkbox') updateCount();
+      });
+
+      document.getElementById('doneBtn').addEventListener('click', function() {
+        completion('done');
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wireChecklist);
+    } else {
+      wireChecklist();
+    }
   `, true);
 
   const presented = wv.present(true);
