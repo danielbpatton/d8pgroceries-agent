@@ -270,7 +270,7 @@ function buildChecklistHTML(items) {
 <div class="counter" id="counter">0 of ${total} items in cart</div>
 ${rows}
 <div class="done-bar">
-  <button onclick="completion('done')">Done Shopping</button>
+  <button id="doneBtn">Done Shopping</button>
 </div>
 <script>
 function updateCount() {
@@ -305,7 +305,9 @@ async function showBuildMyList(items) {
   );
 
   const pending = wv.evaluateJavaScript(`
-    // completion is already wired via the Done Shopping button onclick
+    document.getElementById('doneBtn').addEventListener('click', function() {
+      completion('done');
+    });
     window.addEventListener('pagehide', function() { completion('done'); });
     window.addEventListener('unload', function() { completion('done'); });
   `, true);
