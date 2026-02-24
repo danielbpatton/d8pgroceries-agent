@@ -19,7 +19,10 @@ async function showModeAlert() {
 
 /**
  * Show a fullscreen HTML editor for the user to type/paste/dictate their list.
- * @returns {Promise<string>} The entered text, or "__CANCEL__" if cancelled.
+ * @returns {Promise<{text: string, wv: WebView, presented: Promise}>}
+ *   text — the entered text, or "__CANCEL__" if cancelled.
+ *   wv — the WebView instance (still presented unless user tapped native Close).
+ *   presented — the present() promise, resolves when WebView is closed.
  */
 async function getUserTextViaEditor() {
   const html = `<!DOCTYPE html>
@@ -116,18 +119,11 @@ async function getUserTextViaEditor() {
   const presented = wv.present(true);
   const result = await Promise.race([pending, presented.then(() => "__CANCEL__")]);
 
-  // Clean up the editor WebView.
-  // If the user submitted text (Parse & Preview or Cancel button), the
-  // editor is still on screen. Dismissing it races with presenting the
-  // next modal (checklist), leaving the editor visible underneath —
-  // causing a double-tap-to-exit bug. Instead, blank the HTML so it's
-  // invisible, and let Scriptable tear it down when the script ends.
-  // If the user tapped the native Close button, the editor is already
-  // dismissed; loadHTML on it is harmless.
-  try { await wv.loadHTML('<html><body style="background:#fff"></body></html>'); } catch (_) { }
-
-  if (typeof result === "string") return result;
-  return "__CANCEL__";
+  // Return the WebView and its present() promise so callers can reuse
+  // the same modal for the checklist instead of stacking a second one
+  // on top (which causes a double-tap-to-exit bug on iOS).
+  const text = typeof result === "string" ? result : "__CANCEL__";
+  return { text: text, wv: wv, presented: presented };
 }
 
 /**
@@ -323,12 +319,17 @@ ${rows}
 
 /**
  * Show the in-store shopping checklist as a fullscreen WebView.
+ * If an existing WebView is provided (from the editor), its content is
+ * replaced with the checklist — keeping a single modal in iOS's view
+ * controller stack so one Close tap returns to Scriptable home.
  * @param {string[]} items
+ * @param {WebView} [existingWv] — editor WebView to reuse
+ * @param {Promise} [existingPresented] — editor's present() promise
  * @returns {Promise<void>}
  */
-async function showBuildMyList(items) {
+async function showBuildMyList(items, existingWv, existingPresented) {
   const html = buildChecklistHTML(items);
-  const wv = new WebView();
+  const wv = existingWv || new WebView();
   await wv.loadHTML(html);
 
   // Pre-paint guard
@@ -394,8 +395,15 @@ async function showBuildMyList(items) {
     })();
   `, false);
 
-  // Show the WebView — resolves when user taps Close or swipes to dismiss
-  await wv.present(true);
+  // Wait for the user to close the WebView.
+  // If reusing the editor's WebView, its original present() promise is
+  // still pending and will resolve when Close is tapped. Otherwise
+  // present a new fullscreen WebView.
+  if (existingPresented) {
+    await existingPresented;
+  } else {
+    await wv.present(true);
+  }
 }
 
 module.exports = {

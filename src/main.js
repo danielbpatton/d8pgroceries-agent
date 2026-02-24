@@ -12,8 +12,10 @@ async function main() {
   if (!mode) return; // cancelled
 
   while (true) {
-    // 2. Get text from user
-    const userText = await getUserTextViaEditor();
+    // 2. Get text from user (returns { text, wv, presented } so we can
+    //    reuse the WebView for the checklist instead of stacking modals)
+    const editorResult = await getUserTextViaEditor();
+    const userText = editorResult.text;
 
     // 3. Cancelled or empty
     if (!userText || userText === "__CANCEL__" || !userText.trim()) return;
@@ -56,8 +58,8 @@ async function main() {
 
     // 8. Branch by mode
     if (mode === "build") {
-      // In-store checklist grouped by aisle
-      await showBuildMyList(items);
+      // In-store checklist — reuse the editor WebView to avoid stacking
+      await showBuildMyList(items, editorResult.wv, editorResult.presented);
     } else {
       // Delivery: walk through items on Instacart
       const result = await shoppingLoop(items);
