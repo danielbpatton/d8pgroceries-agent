@@ -162,33 +162,56 @@ async function shoppingLoop(items) {
     }
     if (choice === 0) {
       // Open Instacart search inside a Scriptable WebView.
-      // Strategy: load the Publix storefront first so Instacart's
-      // React SPA fully hydrates. Then do a CLIENT-SIDE navigation
-      // to the search URL — this goes through the SPA router (which
-      // properly reads the q param) instead of a cold server render
-      // (which hydrates and loses the query to empty state).
+      // Strategy: Instacart's React SPA ignores the URL q param
+      // (both on server render AND client-side navigation) — it
+      // reads search state from its Redux store. So we load the
+      // search page, wait for the SPA to hydrate, then inject the
+      // query directly into the search input DOM element using
+      // React-compatible value setting and dispatch a submit.
       // Falls back to Safari if the WebView fails.
       try {
         const searchWv = new WebView();
-        const q = encodeURIComponent(items[i]);
-        const dest = "https://www.instacart.com/store/publix/search?q=" + q;
+        const raw = items[i].replace(/'/g, "\\'");
+        const searchUrl = "https://www.instacart.com/store/publix/search";
 
-        // 1. Load storefront — SPA hydrates here
-        await searchWv.loadURL("https://www.instacart.com/store/publix");
+        // 1. Load the search page (it will show "Results for ''")
+        await searchWv.loadURL(searchUrl);
 
-        // 2. Once hydrated, navigate to search via SPA router.
-        //    Poll for readyState=complete (SPA scripts loaded),
-        //    then redirect. 5s fallback if polling misses it.
+        // 2. After hydration, find the search input, set its value
+        //    via React's native setter (triggers synthetic events),
+        //    then press Enter to submit through the SPA.
         await searchWv.evaluateJavaScript(`
           (function() {
-            var dest = "${dest.replace(/"/g, '\\"')}";
+            var q = '${raw}';
+            function tryInject() {
+              var el = document.querySelector('input[role="search"]')
+                    || document.querySelector('input[aria-label*="earch"]')
+                    || document.querySelector('input[type="search"]')
+                    || document.querySelector('input[placeholder*="earch"]')
+                    || document.querySelector('form[role="search"] input')
+                    || document.querySelector('input[data-testid*="search"]');
+              if (!el) return false;
+              var setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype, 'value'
+              ).set;
+              setter.call(el, q);
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              el.focus();
+              el.dispatchEvent(new KeyboardEvent('keydown',
+                { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              el.dispatchEvent(new KeyboardEvent('keypress',
+                { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              el.dispatchEvent(new KeyboardEvent('keyup',
+                { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              var form = el.closest('form');
+              if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              return true;
+            }
             var tid = setInterval(function() {
-              if (document.readyState === 'complete') {
-                clearInterval(tid);
-                setTimeout(function() { window.location.href = dest; }, 600);
-              }
-            }, 200);
-            setTimeout(function() { clearInterval(tid); window.location.href = dest; }, 5000);
+              if (tryInject()) clearInterval(tid);
+            }, 400);
+            setTimeout(function() { clearInterval(tid); }, 12000);
           })();
         `, false);
 
